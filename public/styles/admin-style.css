@@ -497,6 +497,11 @@ body {
     transition: all 0.3s ease;
 }
 
+.btn-icon:focus-visible {
+    outline: 3px solid rgba(76, 141, 206, 0.55);
+    outline-offset: 3px;
+}
+
 .btn-edit {
     background: rgba(76, 141, 206, 0.12);
     color: var(--soft-sky-blue);

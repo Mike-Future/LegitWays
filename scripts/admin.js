@@ -509,14 +509,14 @@ async function renderPostsList() {
                 </div>
             </div>
             <div class="post-actions">
-                <button class="btn-icon btn-view" onclick="viewPost('${post.slug}')" title="View">
-                    <i class="fas fa-eye"></i>
+                <button type="button" class="btn-icon btn-view" onclick="viewPost('${post.slug}')" title="View post" aria-label="View post">
+                    <i class="fas fa-eye" aria-hidden="true"></i>
                 </button>
-                <button class="btn-icon btn-edit" onclick="editPost('${post.id}')" title="Edit">
-                    <i class="fas fa-edit"></i>
+                <button type="button" class="btn-icon btn-edit" onclick="editPost('${post.id}')" title="Edit post" aria-label="Edit post">
+                    <i class="fas fa-pen-to-square" aria-hidden="true"></i>
                 </button>
-                <button class="btn-icon btn-delete" onclick="deletePost('${post.id}')" title="Delete">
-                    <i class="fas fa-trash"></i>
+                <button type="button" class="btn-icon btn-delete" onclick="deletePost('${post.id}')" title="Delete post" aria-label="Delete post">
+                    <i class="fas fa-trash-can" aria-hidden="true"></i>
                 </button>
             </div>
         </div>

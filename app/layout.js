@@ -7,8 +7,8 @@ import '../styles/blog-post-style.css';
 import '../styles/admin-style.css';
 
 export const metadata = {
-    title: 'CarnegienFreedom | Legit Ways to Live Better, Smarter, and More Securely',
-    description: 'Education-first guidance to help you learn what works, avoid scams, and find legitimate paths to better living.',
+    title: 'CarnegienFreedom | Plan, Earn, and Live Free',
+    description: 'CarnegienFreedom helps you plan, earn, and live free through practical financial-freedom education and scam-aware guidance.',
     icons: { icon: '/images/favicon.svg' },
 };
 

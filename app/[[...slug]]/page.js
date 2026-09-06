@@ -49,7 +49,7 @@ const getPageHtml = cache(async (slug) => {
 
 export async function generateMetadata({ params }) {
     const slug = (await params).slug?.[0] || 'home';
-    return { title: slug === 'home' ? 'CarnegienFreedom | Legit Ways to Live Better, Smarter, and More Securely' : `${slug.replaceAll('-', ' ')} | CarnegienFreedom` };
+    return { title: slug === 'home' ? 'CarnegienFreedom | Plan, Earn, and Live Free' : `${slug.replaceAll('-', ' ')} | CarnegienFreedom` };
 }
 
 export default async function LegacyPage({ params, searchParams }) {

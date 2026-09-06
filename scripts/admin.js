@@ -211,7 +211,10 @@ function renderTeamProfileFields(profiles) {
         : profiles.map((profile, index) => `
         <div class="form-section team-profile-editor">
             <div class="team-profile-editor__header">
-                <h3><i class="fas fa-user"></i> Profile ${index + 1}</h3>
+                <div class="team-profile-summary">
+                    <h3><i class="fas fa-user"></i> <span data-team-summary="name">${escapeHTML(profile.name || 'New profile')}</span></h3>
+                    <p><span data-team-summary="role">${escapeHTML(profile.role || 'Role or title')}</span> <span class="team-profile-summary__separator">|</span> <span data-team-summary="bio">${escapeHTML(profile.bio || 'Add a short biography')}</span></p>
+                </div>
                 <div class="team-profile-actions">
                     <button type="button" class="btn-icon btn-view" data-team-action="view" data-team-index="${index}"
                         title="View profile" aria-label="View profile">
@@ -227,7 +230,7 @@ function renderTeamProfileFields(profiles) {
                     </button>
                 </div>
             </div>
-            <div class="form-grid">
+            <div class="form-grid team-profile-fields is-hidden">
                 <div class="form-group">
                     <label for="team-${index}-name">Name</label>
                     <input type="text" id="team-${index}-name" data-team-field="name" data-team-index="${index}" value="${escapeAttribute(profile.name)}" placeholder="Full name">
@@ -266,7 +269,10 @@ function renderTeamProfileFields(profiles) {
                 return;
             }
             if (action === 'edit') {
-                container.querySelector(`[data-team-index="${index}"][data-team-field="name"]`)?.focus();
+                const card = button.closest('.team-profile-editor');
+                const fields = card.querySelector('.team-profile-fields');
+                fields.classList.remove('is-hidden');
+                card.querySelector(`[data-team-index="${index}"][data-team-field="name"]`)?.focus();
                 return;
             }
             if (window.confirm('Delete this profile?')) {
@@ -280,6 +286,21 @@ function renderTeamProfileFields(profiles) {
     container.querySelectorAll('[data-team-photo-file]').forEach(input => {
         input.addEventListener('change', handleTeamPhotoUpload);
     });
+
+    container.querySelectorAll('[data-team-field]').forEach(input => {
+        input.addEventListener('input', () => updateTeamProfileSummary(input.closest('.team-profile-editor')));
+    });
+}
+
+function updateTeamProfileSummary(card) {
+    if (!card) return;
+    const getValue = field => card.querySelector(`[data-team-field="${field}"]`)?.value.trim();
+    const name = card.querySelector('[data-team-summary="name"]');
+    const role = card.querySelector('[data-team-summary="role"]');
+    const bio = card.querySelector('[data-team-summary="bio"]');
+    if (name) name.textContent = getValue('name') || 'New profile';
+    if (role) role.textContent = getValue('role') || 'Role or title';
+    if (bio) bio.textContent = getValue('bio') || 'Add a short biography';
 }
 
 async function handleTeamPhotoUpload(event) {

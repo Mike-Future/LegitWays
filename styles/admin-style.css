@@ -532,6 +532,24 @@ body {
     margin: 0;
 }
 
+.team-profile-summary {
+    min-width: 0;
+}
+
+.team-profile-summary p {
+    margin: 0.4rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.team-profile-summary__separator {
+    margin: 0 0.35rem;
+    color: var(--opportunity-gold);
+}
+
 .team-profile-actions {
     display: flex;
     gap: 0.5rem;

@@ -31,7 +31,15 @@ async function authRequest(path, body) {
         credentials: 'same-origin',
         body: JSON.stringify(body)
     });
-    const result = response.status === 204 ? null : await response.json();
+    const responseText = response.status === 204 ? '' : await response.text();
+    let result = null;
+    if (responseText) {
+        try {
+            result = JSON.parse(responseText);
+        } catch (error) {
+            throw new Error(`Admin service returned an invalid response (${response.status}). Check the API deployment.`);
+        }
+    }
     if (!response.ok) {
         throw new Error(result?.error || 'Authentication request failed');
     }

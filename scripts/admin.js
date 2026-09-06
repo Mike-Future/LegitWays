@@ -133,6 +133,7 @@ async function initAdmin() {
     await loadTeamProfiles();
     if (currentAdminUser?.isSuperAdmin) {
         await loadAdmins();
+        await loadAdminChangeRequests();
     }
 }
 
@@ -332,16 +333,20 @@ async function loadAdmins() {
                     <div class="post-meta">
                         <span><i class="fas fa-envelope"></i> ${escapeHTML(admin.email)}</span>
                         <span><i class="fas fa-calendar"></i> ${formatDate(admin.created_at)}</span>
-                        <span class="admin-status admin-status--${admin.approved ? 'approved' : 'pending'}">
-                            <i class="fas ${admin.approved ? 'fa-circle-check' : 'fa-clock'}"></i>
-                            ${admin.isSuperAdmin ? 'Super admin' : (admin.approved ? 'Approved' : 'Pending')}
+                        <span class="admin-status admin-status--${admin.suspended ? 'suspended' : (admin.approved ? 'approved' : 'pending')}">
+                            <i class="fas ${admin.suspended ? 'fa-ban' : (admin.approved ? 'fa-circle-check' : 'fa-clock')}"></i>
+                            ${admin.isSuperAdmin ? 'Super admin' : (admin.suspended ? 'Suspended' : (admin.approved ? 'Approved' : 'Pending'))}
                         </span>
                     </div>
                 </div>
                 <div class="post-actions">
                     ${!admin.isSuperAdmin && !admin.approved ? `<button type="button" class="btn btn-approve" data-admin-action="approve" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-check" aria-hidden="true"></i> Approve</button>` : ''}
+                    ${!admin.isSuperAdmin && admin.approved && !admin.suspended ? `<button type="button" class="btn btn-approve" data-admin-action="promote" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-shield" aria-hidden="true"></i> Make super admin</button>` : ''}
                     ${!admin.isSuperAdmin && admin.approved ? `<button type="button" class="btn btn-secondary" data-admin-action="revoke" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-slash" aria-hidden="true"></i> Revoke access</button>` : ''}
                     ${!admin.isSuperAdmin ? `<button type="button" class="btn btn-danger" data-admin-action="remove" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-xmark" aria-hidden="true"></i> Remove</button>` : ''}
+                    ${admin.isSuperAdmin && admin.id !== currentAdminUser.id ? `<button type="button" class="btn btn-secondary" data-admin-action="request-downgrade" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-minus" aria-hidden="true"></i> Request downgrade</button>` : ''}
+                    ${admin.isSuperAdmin && admin.id !== currentAdminUser.id ? `<button type="button" class="btn btn-secondary" data-admin-action="request-suspend" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-slash" aria-hidden="true"></i> Request suspension</button>` : ''}
+                    ${admin.isSuperAdmin && admin.id !== currentAdminUser.id ? `<button type="button" class="btn btn-danger" data-admin-action="request-delete" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-xmark" aria-hidden="true"></i> Request deletion</button>` : ''}
                 </div>
             </div>
         `).join('');
@@ -351,6 +356,51 @@ async function loadAdmins() {
         });
     } catch (error) {
         container.innerHTML = `<div class="empty-state">Unable to load admin accounts: ${escapeHTML(error.message)}</div>`;
+    }
+}
+
+async function loadAdminChangeRequests() {
+    if (!currentAdminUser?.isSuperAdmin) return;
+    const container = document.getElementById('adminChangeRequestsList');
+    if (!container) return;
+
+    try {
+        const requests = await db.getAdminChangeRequests();
+        if (requests.length === 0) {
+            container.innerHTML = '<div class="empty-state">No active super admin change requests.</div>';
+            return;
+        }
+        container.innerHTML = requests.map(request => `
+            <div class="post-item admin-account-item">
+                <div class="post-info">
+                    <h4>${escapeHTML(request.action)}: ${escapeHTML(request.target_username)}</h4>
+                    <div class="post-meta">
+                        <span><i class="fas fa-user"></i> Requested by ${escapeHTML(request.requester_username)}</span>
+                        <span><i class="fas fa-check-double"></i> ${request.approvals}/${request.quorum} confirmations</span>
+                    </div>
+                </div>
+                ${request.requested_by !== currentAdminUser.id ? `<div class="post-actions"><button type="button" class="btn btn-approve" data-change-request-id="${escapeAttribute(request.id)}"><i class="fas fa-check" aria-hidden="true"></i> Confirm</button></div>` : '<span class="admin-request-note">Waiting for another super admin</span>'}
+            </div>
+        `).join('');
+        container.querySelectorAll('[data-change-request-id]').forEach(button => {
+            button.addEventListener('click', () => voteOnAdminChangeRequest(button.dataset.changeRequestId));
+        });
+    } catch (error) {
+        container.innerHTML = `<div class="empty-state">Unable to load change requests: ${escapeHTML(error.message)}</div>`;
+    }
+}
+
+async function voteOnAdminChangeRequest(id) {
+    showLoading(true);
+    try {
+        const result = await db.voteOnAdminChangeRequest(id);
+        showNotification(result.status === 'approved' ? 'Change request approved.' : 'Confirmation recorded.');
+        await loadAdmins();
+        await loadAdminChangeRequests();
+    } catch (error) {
+        alert(error.message || 'Unable to confirm change request.');
+    } finally {
+        showLoading(false);
     }
 }
 
@@ -364,6 +414,13 @@ async function handleAdminAction(action, id) {
         if (action === 'approve') {
             await db.approveAdmin(id);
             showNotification('Admin account approved.');
+        } else if (action === 'promote') {
+            await db.promoteAdmin(id);
+            showNotification('Admin promoted to super admin.');
+        } else if (action.startsWith('request-')) {
+            const requestAction = action.replace('request-', '');
+            await db.createAdminChangeRequest(id, requestAction);
+            showNotification('Super admin change request created.');
         } else if (action === 'revoke') {
             await db.revokeAdmin(id);
             showNotification('Admin access revoked.');
@@ -372,6 +429,7 @@ async function handleAdminAction(action, id) {
             showNotification('Admin account removed.');
         }
         await loadAdmins();
+        await loadAdminChangeRequests();
     } catch (error) {
         alert(error.message || 'Unable to update admin account.');
     } finally {
@@ -764,6 +822,7 @@ function switchTab(tabName) {
         loadTeamProfiles();
     } else if (tabName === 'super-admin') {
         loadAdmins();
+        loadAdminChangeRequests();
     } else if (tabName === 'export') {
         updateDocumentStatus();
     }

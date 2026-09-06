@@ -540,6 +540,16 @@ body {
     color: var(--opportunity-gold);
 }
 
+.admin-status--suspended {
+    color: var(--danger);
+}
+
+.admin-request-note {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
 .admin-account-item .post-actions {
     flex-wrap: wrap;
     justify-content: flex-end;

@@ -154,7 +154,29 @@ async function initDatabase() {
             password_hash TEXT NOT NULL,
             approved BOOLEAN NOT NULL DEFAULT false,
             is_super_admin BOOLEAN NOT NULL DEFAULT false,
+            suspended BOOLEAN NOT NULL DEFAULT false,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_change_requests (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            target_user_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+            requested_by UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+            action TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            resolved_at TIMESTAMPTZ
+        );
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_change_votes (
+            request_id UUID NOT NULL REFERENCES admin_change_requests(id) ON DELETE CASCADE,
+            voter_id UUID NOT NULL REFERENCES admin_users(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (request_id, voter_id)
         );
     `);
 
@@ -172,6 +194,7 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS source_document_name TEXT;`);
     await pool.query(`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT false;`);
     await pool.query(`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT false;`);
+    await pool.query(`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS suspended BOOLEAN NOT NULL DEFAULT false;`);
 
     await createBootstrapAdmin();
     await loadDefaultDataIfEmpty();
@@ -301,12 +324,14 @@ async function requireAdmin(req, res, next) {
     try {
         result = await pool.query(
             `SELECT admin_users.id, admin_users.username, admin_users.email,
-                    admin_users.approved, admin_users.is_super_admin AS "isSuperAdmin"
+                    admin_users.approved, admin_users.is_super_admin AS "isSuperAdmin",
+                    admin_users.suspended
              FROM admin_sessions
              JOIN admin_users ON admin_users.id = admin_sessions.user_id
                          WHERE admin_sessions.token_hash = $1
                              AND admin_sessions.expires_at > NOW()
-                             AND admin_users.approved = true`,
+                             AND admin_users.approved = true
+                             AND admin_users.suspended = false`,
             [hashSessionToken(token)]
         );
     } catch (error) {
@@ -363,7 +388,7 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
     let result;
     try {
         result = await pool.query(
-            'SELECT id, username, email, password_hash, approved, is_super_admin FROM admin_users WHERE email = $1 LIMIT 1',
+            'SELECT id, username, email, password_hash, approved, is_super_admin, suspended FROM admin_users WHERE email = $1 LIMIT 1',
             [email]
         );
     } catch (error) {
@@ -376,6 +401,10 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
 
     if (!result.rows[0].approved) {
         return res.status(403).json({ error: 'Your admin account is waiting for super admin approval.' });
+    }
+
+    if (result.rows[0].suspended) {
+        return res.status(403).json({ error: 'Your admin account has been suspended by a super admin.' });
     }
 
     const token = createSessionToken();
@@ -391,7 +420,8 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
             username: result.rows[0].username,
             email: result.rows[0].email,
             approved: result.rows[0].approved,
-            isSuperAdmin: result.rows[0].is_super_admin
+            isSuperAdmin: result.rows[0].is_super_admin,
+            suspended: result.rows[0].suspended
         }
     });
 });
@@ -412,11 +442,154 @@ app.get('/api/admin/pending', requireSuperAdmin, async (req, res) => {
 
 app.get('/api/admin', requireSuperAdmin, async (req, res) => {
     const result = await pool.query(
-        `SELECT id, username, email, approved, is_super_admin AS "isSuperAdmin", created_at
+        `SELECT id, username, email, approved, is_super_admin AS "isSuperAdmin", suspended, created_at
          FROM admin_users
          ORDER BY is_super_admin DESC, approved DESC, created_at ASC`
     );
     res.json(result.rows);
+});
+
+app.get('/api/admin/change-requests', requireSuperAdmin, async (req, res) => {
+    const result = await pool.query(
+        `SELECT requests.id, requests.action, requests.status, requests.created_at,
+            requests.requested_by,
+                target.username AS target_username,
+                requester.username AS requester_username,
+                (SELECT COUNT(*) FROM admin_change_votes votes WHERE votes.request_id = requests.id) AS approvals,
+                (SELECT GREATEST(1, CEIL(COUNT(*) / 2.0) - 1) FROM admin_users quorum_admins
+                 WHERE quorum_admins.is_super_admin = true
+                   AND quorum_admins.approved = true
+                   AND quorum_admins.suspended = false) AS quorum
+         FROM admin_change_requests requests
+         JOIN admin_users target ON target.id = requests.target_user_id
+         JOIN admin_users requester ON requester.id = requests.requested_by
+         WHERE requests.status = 'pending'
+         ORDER BY requests.created_at ASC`
+    );
+    res.json(result.rows);
+});
+
+app.post('/api/admin/:id/promote', requireSuperAdmin, async (req, res) => {
+    if (req.params.id === req.adminUser.id) {
+        return res.status(400).json({ error: 'You are already a super admin' });
+    }
+    const result = await pool.query(
+        `UPDATE admin_users
+         SET approved = true, suspended = false, is_super_admin = true
+         WHERE id = $1 AND is_super_admin = false
+         RETURNING id, username, email, approved, is_super_admin AS "isSuperAdmin", suspended`,
+        [req.params.id]
+    );
+    if (!result.rows[0]) {
+        return res.status(404).json({ error: 'Regular admin account not found' });
+    }
+    res.json(result.rows[0]);
+});
+
+app.post('/api/admin/:id/change-request', requireSuperAdmin, async (req, res) => {
+    const action = String(req.body?.action || '').trim().toLowerCase();
+    const allowedActions = new Set(['downgrade', 'suspend', 'delete']);
+    if (!allowedActions.has(action)) {
+        return res.status(400).json({ error: 'Action must be downgrade, suspend, or delete' });
+    }
+    if (req.params.id === req.adminUser.id) {
+        return res.status(400).json({ error: 'You cannot create a change request for yourself' });
+    }
+
+    const target = await pool.query(
+        'SELECT id FROM admin_users WHERE id = $1 AND is_super_admin = true LIMIT 1',
+        [req.params.id]
+    );
+    if (!target.rows[0]) {
+        return res.status(404).json({ error: 'Super admin account not found' });
+    }
+
+    const existing = await pool.query(
+        `SELECT id FROM admin_change_requests
+         WHERE target_user_id = $1 AND action = $2 AND status = 'pending' LIMIT 1`,
+        [req.params.id, action]
+    );
+    if (existing.rows[0]) {
+        return res.status(409).json({ error: 'A matching change request is already pending' });
+    }
+
+    const result = await pool.query(
+        `INSERT INTO admin_change_requests (target_user_id, requested_by, action)
+         VALUES ($1, $2, $3)
+         RETURNING id, action, status, created_at`,
+        [req.params.id, req.adminUser.id, action]
+    );
+    res.status(201).json(result.rows[0]);
+});
+
+app.post('/api/admin/change-requests/:id/vote', requireSuperAdmin, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const requestResult = await client.query(
+            `SELECT id, target_user_id, requested_by, action, status
+             FROM admin_change_requests
+             WHERE id = $1
+             FOR UPDATE`,
+            [req.params.id]
+        );
+        const changeRequest = requestResult.rows[0];
+        if (!changeRequest || changeRequest.status !== 'pending') {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ error: 'Pending change request not found' });
+        }
+        if (changeRequest.requested_by === req.adminUser.id) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'The requester cannot confirm their own change request' });
+        }
+        if (changeRequest.target_user_id === req.adminUser.id) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ error: 'The target super admin cannot confirm this change request' });
+        }
+
+        const superAdminCount = await client.query(
+            `SELECT COUNT(*)::integer AS count
+             FROM admin_users
+             WHERE is_super_admin = true AND approved = true AND suspended = false`
+        );
+        const quorum = Math.max(1, Math.ceil(superAdminCount.rows[0].count / 2) - 1);
+        await client.query(
+            'INSERT INTO admin_change_votes (request_id, voter_id) VALUES ($1, $2)',
+            [changeRequest.id, req.adminUser.id]
+        );
+        const approvals = await client.query(
+            'SELECT COUNT(*)::integer AS count FROM admin_change_votes WHERE request_id = $1',
+            [changeRequest.id]
+        );
+        const approvedCount = approvals.rows[0].count;
+        let completed = false;
+        if (approvedCount >= quorum) {
+            if (changeRequest.action === 'downgrade') {
+                await client.query('UPDATE admin_users SET is_super_admin = false WHERE id = $1', [changeRequest.target_user_id]);
+            } else if (changeRequest.action === 'suspend') {
+                await client.query('UPDATE admin_users SET suspended = true WHERE id = $1', [changeRequest.target_user_id]);
+                await client.query('DELETE FROM admin_sessions WHERE user_id = $1', [changeRequest.target_user_id]);
+            } else {
+                await client.query('DELETE FROM admin_users WHERE id = $1', [changeRequest.target_user_id]);
+            }
+            await client.query(
+                `UPDATE admin_change_requests SET status = 'approved', resolved_at = NOW() WHERE id = $1`,
+                [changeRequest.id]
+            );
+            completed = true;
+        }
+        await client.query('COMMIT');
+        res.json({ status: completed ? 'approved' : 'pending', approvals: approvedCount, quorum });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        if (error.code === '23505') {
+            return res.status(409).json({ error: 'You have already confirmed this request' });
+        }
+        console.error('Admin change vote failed:', error.message);
+        res.status(500).json({ error: 'Unable to record admin change vote' });
+    } finally {
+        client.release();
+    }
 });
 
 app.post('/api/admin/:id/approve', requireSuperAdmin, async (req, res) => {
@@ -455,9 +628,9 @@ app.delete('/api/admin/:id', requireSuperAdmin, async (req, res) => {
     if (req.params.id === req.adminUser.id) {
         return res.status(400).json({ error: 'You cannot remove your own super admin account' });
     }
-    const result = await pool.query('DELETE FROM admin_users WHERE id = $1 RETURNING id', [req.params.id]);
+    const result = await pool.query('DELETE FROM admin_users WHERE id = $1 AND is_super_admin = false RETURNING id', [req.params.id]);
     if (!result.rows[0]) {
-        return res.status(404).json({ error: 'Admin account not found' });
+        return res.status(409).json({ error: 'Super admin accounts require a quorum change request before deletion' });
     }
     res.status(204).end();
 });

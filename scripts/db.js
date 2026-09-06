@@ -67,7 +67,11 @@ async function initDB() {
         saveSetting,
         getPendingAdmins,
         getAdmins,
+        getAdminChangeRequests,
         approveAdmin,
+        promoteAdmin,
+        createAdminChangeRequest,
+        voteOnAdminChangeRequest,
         revokeAdmin,
         removeAdmin,
         exportAllData,
@@ -176,8 +180,27 @@ async function getAdmins() {
     return request('/admin');
 }
 
+async function getAdminChangeRequests() {
+    return request('/admin/change-requests');
+}
+
 async function approveAdmin(id) {
     return request(`/admin/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+}
+
+async function promoteAdmin(id) {
+    return request(`/admin/${encodeURIComponent(id)}/promote`, { method: 'POST' });
+}
+
+async function createAdminChangeRequest(id, action) {
+    return request(`/admin/${encodeURIComponent(id)}/change-request`, {
+        method: 'POST',
+        body: JSON.stringify({ action })
+    });
+}
+
+async function voteOnAdminChangeRequest(id) {
+    return request(`/admin/change-requests/${encodeURIComponent(id)}/vote`, { method: 'POST' });
 }
 
 async function revokeAdmin(id) {

@@ -347,6 +347,22 @@ button:active,
     line-height: 1.6;
 }
 
+.hero-purpose {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.hero-purpose h2 {
+    color: var(--opportunity-gold);
+    font-size: 1.35rem;
+    margin-bottom: 0.5rem;
+}
+
+.hero-purpose p {
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.6;
+}
+
 .hero-cta-group {
     display: flex;
     gap: 1rem;

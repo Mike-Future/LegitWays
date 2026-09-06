@@ -287,30 +287,41 @@ function toggleMobileMenu() {
     menu.classList.toggle('active');
 }
 
-const defaultTeamProfiles = Array.from({ length: 4 }, () => ({
-    name: 'Name placeholder',
-    role: 'Role or title',
-    bio: "Add a brief biography covering this person's experience, focus, and contribution to CarnegienFreedom.",
-    photo: '',
-    linkedin: ''
-}));
-
-defaultTeamProfiles[0] = {
-    name: 'Nantim Mullah Dadi',
-    role: 'Founder and Owner',
-    bio: 'Nantim Mullah Dadi founded and owns CarnegienFreedom, an education-first platform for practical financial-freedom guidance and scam awareness.',
-    photo: '',
-    linkedin: ''
-};
+const defaultTeamProfiles = [];
 
 function renderTeamProfiles(profiles) {
-    document.querySelectorAll('[data-team-profile]').forEach((card, index) => {
-        const profile = profiles[index] || defaultTeamProfiles[index];
-        card.querySelector('[data-profile-field="name"]').textContent = profile.name || 'Name placeholder';
-        card.querySelector('[data-profile-field="role"]').textContent = profile.role || 'Role or title';
-        card.querySelector('[data-profile-field="bio"]').textContent = profile.bio || '';
+    const grid = document.getElementById('teamProfilesGrid');
+    if (!grid) return;
 
-        const photo = card.querySelector('[data-profile-field="photo"]');
+    grid.replaceChildren();
+    profiles.forEach((profile) => {
+        const card = document.createElement('article');
+        card.className = 'team-card';
+
+        const photo = document.createElement('div');
+        photo.className = 'team-photo';
+        photo.setAttribute('role', 'img');
+        card.appendChild(photo);
+
+        const body = document.createElement('div');
+        body.className = 'team-card__body';
+        const name = document.createElement('p');
+        name.className = 'profile-placeholder';
+        name.textContent = profile.name || 'Name placeholder';
+        const role = document.createElement('p');
+        role.className = 'profile-role';
+        role.textContent = profile.role || 'Role or title';
+        const bio = document.createElement('p');
+        bio.className = 'profile-bio';
+        bio.textContent = profile.bio || '';
+        const linkedin = document.createElement('a');
+        linkedin.className = 'linkedin-placeholder';
+        linkedin.textContent = 'LinkedIn profile';
+        linkedin.setAttribute('aria-label', 'LinkedIn profile');
+        body.append(name, role, bio, linkedin);
+        card.appendChild(body);
+        grid.appendChild(card);
+
         if (profile.photo) {
             photo.style.backgroundImage = `url("${profile.photo.replace(/["\\)]/g, '')}")`;
             photo.setAttribute('aria-label', `Photo of ${profile.name || 'team member'}`);
@@ -319,21 +330,18 @@ function renderTeamProfiles(profiles) {
             photo.setAttribute('aria-label', 'Team member photo placeholder');
         }
 
-        const linkedin = card.querySelector('[data-profile-field="linkedin"]');
         if (profile.linkedin) {
             linkedin.href = profile.linkedin;
             linkedin.target = '_blank';
             linkedin.rel = 'noopener noreferrer';
-            linkedin.hidden = false;
         } else {
-            linkedin.removeAttribute('href');
             linkedin.hidden = true;
         }
     });
 }
 
 async function loadTeamProfiles() {
-    if (!document.querySelector('[data-team-profile]')) return;
+    if (!document.getElementById('teamProfilesGrid')) return;
 
     try {
         const response = await fetch('/api/settings/teamProfiles');

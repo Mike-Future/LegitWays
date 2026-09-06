@@ -8,21 +8,7 @@ let registrationMode = false;
 let uploadedDocumentName = '';
 let currentAdminUser = null;
 
-const defaultTeamProfiles = Array.from({ length: 4 }, () => ({
-    name: 'Name placeholder',
-    role: 'Role or title',
-    bio: "Add a brief biography covering this person's experience, focus, and contribution to CarnegienFreedom.",
-    photo: '',
-    linkedin: ''
-}));
-
-defaultTeamProfiles[0] = {
-    name: 'Nantim Mullah Dadi',
-    role: 'Founder and Owner',
-    bio: 'Nantim Mullah Dadi founded and owns CarnegienFreedom, an education-first platform for practical financial-freedom guidance and scam awareness.',
-    photo: '',
-    linkedin: ''
-};
+const defaultTeamProfiles = [];
 
 async function authRequest(path, body) {
     const response = await fetch(path, {
@@ -214,7 +200,12 @@ function renderTeamProfileFields(profiles) {
 
     container.innerHTML = profiles.map((profile, index) => `
         <div class="form-section team-profile-editor">
-            <h3><i class="fas fa-user"></i> Profile ${index + 1}</h3>
+            <div class="team-profile-editor__header">
+                <h3><i class="fas fa-user"></i> Profile ${index + 1}</h3>
+                <button type="button" class="btn btn-danger" data-remove-team-profile="${index}">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
+            </div>
             <div class="form-grid">
                 <div class="form-group">
                     <label for="team-${index}-name">Name</label>
@@ -239,6 +230,14 @@ function renderTeamProfileFields(profiles) {
             </div>
         </div>
     `).join('');
+
+    container.querySelectorAll('[data-remove-team-profile]').forEach(button => {
+        button.addEventListener('click', () => {
+            const updatedProfiles = collectTeamProfiles();
+            updatedProfiles.splice(Number(button.dataset.removeTeamProfile), 1);
+            renderTeamProfileFields(updatedProfiles);
+        });
+    });
 }
 
 function escapeHTML(value) {
@@ -260,15 +259,31 @@ async function loadTeamProfiles() {
     renderTeamProfileFields(Array.isArray(profiles) ? profiles : defaultTeamProfiles);
 }
 
-async function saveTeamProfiles(event) {
-    event.preventDefault();
-    const profiles = defaultTeamProfiles.map((defaultProfile, index) => {
+function collectTeamProfiles() {
+    return Array.from(document.querySelectorAll('.team-profile-editor')).map((editor, index) => {
         const profile = {};
         ['name', 'role', 'bio', 'photo', 'linkedin'].forEach(field => {
-            profile[field] = document.querySelector(`[data-team-index="${index}"][data-team-field="${field}"]`).value.trim();
+            profile[field] = editor.querySelector(`[data-team-index="${index}"][data-team-field="${field}"]`).value.trim();
         });
         return profile;
     });
+}
+
+function addTeamProfile() {
+    const profiles = collectTeamProfiles();
+    profiles.push({
+        name: 'Name placeholder',
+        role: 'Role or title',
+        bio: "Add a brief biography covering this person's experience, focus, and contribution to CarnegienFreedom.",
+        photo: '',
+        linkedin: ''
+    });
+    renderTeamProfileFields(profiles);
+}
+
+async function saveTeamProfiles(event) {
+    event.preventDefault();
+    const profiles = collectTeamProfiles();
 
     showLoading(true);
     try {
@@ -735,6 +750,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (action === 'preview') previewPost();
             if (action === 'clear-form') clearForm();
             if (action === 'close-preview') closePreview();
+            if (action === 'add-team-profile') addTeamProfile();
         });
     });
 

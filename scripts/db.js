@@ -65,6 +65,9 @@ async function initDB() {
         updateCategoryCounts,
         getSetting,
         saveSetting,
+        getPendingAdmins,
+        approveAdmin,
+        removeAdmin,
         exportAllData,
         importData,
         clearAllData
@@ -161,6 +164,18 @@ async function saveSetting(key, value) {
         method: 'POST',
         body: JSON.stringify({ key, value })
     });
+}
+
+async function getPendingAdmins() {
+    return request('/admin/pending');
+}
+
+async function approveAdmin(id) {
+    return request(`/admin/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+}
+
+async function removeAdmin(id) {
+    return request(`/admin/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
 
 async function exportAllData() {

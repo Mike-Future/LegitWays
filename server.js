@@ -97,19 +97,17 @@ async function createBootstrapAdmin() {
         return;
     }
 
-    const { rows } = await pool.query('SELECT 1 FROM admin_users LIMIT 1');
-    if (rows.length > 0) {
-        return;
-    }
-
     const passwordHash = await bcrypt.hash(password, 12);
-    await pool.query(
-        `INSERT INTO admin_users (username, email, password_hash)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (email) DO NOTHING`,
+    const result = await pool.query(
+        `INSERT INTO admin_users (username, email, password_hash, approved, is_super_admin)
+         VALUES ($1, $2, $3, true, true)
+         ON CONFLICT (email) DO UPDATE SET
+            approved = true,
+            is_super_admin = true
+         RETURNING (xmax = 0) AS created`,
         [username, email, passwordHash]
     );
-    console.log(`Created bootstrap admin account for ${email}`);
+    console.log(`${result.rows[0].created ? 'Created' : 'Updated'} bootstrap super admin account for ${email}`);
 }
 
 async function initDatabase() {
@@ -154,6 +152,8 @@ async function initDatabase() {
             username TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            approved BOOLEAN NOT NULL DEFAULT false,
+            is_super_admin BOOLEAN NOT NULL DEFAULT false,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         );
     `);
@@ -170,6 +170,8 @@ async function initDatabase() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_posts_featured ON posts(featured);`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug);`);
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS source_document_name TEXT;`);
+    await pool.query(`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT false;`);
+    await pool.query(`ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS is_super_admin BOOLEAN NOT NULL DEFAULT false;`);
 
     await createBootstrapAdmin();
     await loadDefaultDataIfEmpty();
@@ -298,10 +300,13 @@ async function requireAdmin(req, res, next) {
     let result;
     try {
         result = await pool.query(
-            `SELECT admin_users.id, admin_users.username, admin_users.email
+            `SELECT admin_users.id, admin_users.username, admin_users.email,
+                    admin_users.approved, admin_users.is_super_admin AS "isSuperAdmin"
              FROM admin_sessions
              JOIN admin_users ON admin_users.id = admin_sessions.user_id
-             WHERE admin_sessions.token_hash = $1 AND admin_sessions.expires_at > NOW()`,
+                         WHERE admin_sessions.token_hash = $1
+                             AND admin_sessions.expires_at > NOW()
+                             AND admin_users.approved = true`,
             [hashSessionToken(token)]
         );
     } catch (error) {
@@ -316,6 +321,15 @@ async function requireAdmin(req, res, next) {
     next();
 }
 
+async function requireSuperAdmin(req, res, next) {
+    await requireAdmin(req, res, () => {
+        if (!req.adminUser.isSuperAdmin) {
+            return res.status(403).json({ error: 'Super admin approval required' });
+        }
+        next();
+    });
+}
+
 app.post('/api/auth/register', authRateLimit, async (req, res) => {
     const username = String(req.body?.username || '').trim();
     const email = String(req.body?.email || '').trim().toLowerCase();
@@ -328,19 +342,12 @@ app.post('/api/auth/register', authRateLimit, async (req, res) => {
     try {
         const passwordHash = await bcrypt.hash(password, 12);
         const result = await pool.query(
-            `INSERT INTO admin_users (username, email, password_hash)
-             VALUES ($1, $2, $3)
-             RETURNING id, username, email`,
+            `INSERT INTO admin_users (username, email, password_hash, approved, is_super_admin)
+             VALUES ($1, $2, $3, false, false)
+             RETURNING id, username, email, approved`,
             [username, email, passwordHash]
         );
-        const token = createSessionToken();
-        await pool.query(
-            `INSERT INTO admin_sessions (token_hash, user_id, expires_at)
-             VALUES ($1, $2, NOW() + INTERVAL '24 hours')`,
-            [hashSessionToken(token), result.rows[0].id]
-        );
-        setSessionCookie(res, token);
-        res.status(201).json({ user: result.rows[0] });
+        res.status(202).json({ pending: true, user: result.rows[0] });
     } catch (error) {
         if (error.code === '23505') {
             return res.status(409).json({ error: 'An account with that email already exists' });
@@ -355,13 +362,20 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
     const password = String(req.body?.password || '');
     let result;
     try {
-        result = await pool.query('SELECT id, username, email, password_hash FROM admin_users WHERE email = $1 LIMIT 1', [email]);
+        result = await pool.query(
+            'SELECT id, username, email, password_hash, approved, is_super_admin FROM admin_users WHERE email = $1 LIMIT 1',
+            [email]
+        );
     } catch (error) {
         return res.status(503).json({ error: 'Database is unavailable' });
     }
 
     if (!result.rows[0] || !(await bcrypt.compare(password, result.rows[0].password_hash))) {
         return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    if (!result.rows[0].approved) {
+        return res.status(403).json({ error: 'Your admin account is waiting for super admin approval.' });
     }
 
     const token = createSessionToken();
@@ -371,11 +385,54 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
         [hashSessionToken(token), result.rows[0].id]
     );
     setSessionCookie(res, token);
-    res.json({ user: { id: result.rows[0].id, username: result.rows[0].username, email: result.rows[0].email } });
+    res.json({
+        user: {
+            id: result.rows[0].id,
+            username: result.rows[0].username,
+            email: result.rows[0].email,
+            approved: result.rows[0].approved,
+            isSuperAdmin: result.rows[0].is_super_admin
+        }
+    });
 });
 
 app.get('/api/auth/session', requireAdmin, (req, res) => {
     res.json({ user: req.adminUser });
+});
+
+app.get('/api/admin/pending', requireSuperAdmin, async (req, res) => {
+    const result = await pool.query(
+        `SELECT id, username, email, created_at
+         FROM admin_users
+         WHERE approved = false
+         ORDER BY created_at ASC`
+    );
+    res.json(result.rows);
+});
+
+app.post('/api/admin/:id/approve', requireSuperAdmin, async (req, res) => {
+    const result = await pool.query(
+        `UPDATE admin_users
+         SET approved = true
+         WHERE id = $1
+         RETURNING id, username, email, approved, is_super_admin`,
+        [req.params.id]
+    );
+    if (!result.rows[0]) {
+        return res.status(404).json({ error: 'Admin account not found' });
+    }
+    res.json(result.rows[0]);
+});
+
+app.delete('/api/admin/:id', requireSuperAdmin, async (req, res) => {
+    if (req.params.id === req.adminUser.id) {
+        return res.status(400).json({ error: 'You cannot remove your own super admin account' });
+    }
+    const result = await pool.query('DELETE FROM admin_users WHERE id = $1 RETURNING id', [req.params.id]);
+    if (!result.rows[0]) {
+        return res.status(404).json({ error: 'Admin account not found' });
+    }
+    res.status(204).end();
 });
 
 app.post('/api/auth/logout', async (req, res) => {

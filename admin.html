@@ -47,7 +47,7 @@
                 </button>
             </form>
 
-            <button type="button" class="auth-switch" id="authSwitch">Need an account? Register</button>
+            <button type="button" class="auth-switch" id="authSwitch">Need admin access? Register</button>
 
             <div class="error-message" id="errorMessage">
                 <i class="fas fa-exclamation-circle"></i>
@@ -127,6 +127,9 @@
                 <button class="tab-btn" data-tab="team">
                     <i class="fas fa-users"></i> Team Profiles
                 </button>
+                <button class="tab-btn is-hidden" id="superAdminTabButton" data-tab="super-admin">
+                    <i class="fas fa-user-shield"></i> Super Admin
+                </button>
                 <button class="tab-btn" data-tab="export">
                     <i class="fas fa-file-word"></i> Export Document
                 </button>
@@ -149,6 +152,18 @@
                         <i class="fas fa-save"></i> Save Team Profiles
                     </button>
                 </form>
+            </div>
+
+            <!-- Super Admin Tab -->
+            <div class="tab-content" id="super-adminTab">
+                <div class="instructions">
+                    <h4><i class="fas fa-user-shield"></i> Admin Approval Requests</h4>
+                    <p>Approve trusted admin accounts before they can access this panel, or remove requests you do not
+                        recognize.</p>
+                </div>
+                <div class="posts-list" id="pendingAdminsList">
+                    <div class="empty-state">Loading approval requests...</div>
+                </div>
             </div>
 
             <!-- Add Post Tab -->

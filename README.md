@@ -11,6 +11,7 @@ This repository contains the CarnegienFreedom website and its dynamic blog manag
 - Responsive public website and educational resource pages
 - PostgreSQL-backed blog with categories, search, featured posts, tags, and related articles
 - Protected admin panel for creating, editing, previewing, importing, exporting, and deleting posts
+- Super admin approval workflow for new admin accounts
 - Direct download of the educational guide without email collection
 - Cookie consent banner and cookie preferences
 - Privacy Policy, Cookie Policy, Terms of Use, and disclaimer pages

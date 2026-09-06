@@ -522,6 +522,22 @@ body {
     color: white;
 }
 
+.btn-approve {
+    background: rgba(60, 181, 74, 0.12);
+    color: var(--growth-green);
+}
+
+.btn-approve:hover {
+    background: var(--growth-green);
+    color: white;
+}
+
+.empty-state {
+    padding: 2rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
 .btn-view {
     background: rgba(60, 181, 74, 0.1);
     color: var(--growth-green);

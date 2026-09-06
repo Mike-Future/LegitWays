@@ -62,11 +62,19 @@ async function handleLogin(e) {
     loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
 
     try {
-        await authRequest(registrationMode ? '/api/auth/register' : '/api/auth/login', {
+        const authResult = await authRequest(registrationMode ? '/api/auth/register' : '/api/auth/login', {
             ...(registrationMode ? { username } : {}),
             email,
             password
         });
+
+        if (registrationMode && authResult?.pending) {
+            toggleAuthMode();
+            document.getElementById('errorText').textContent = 'Registration received. A super admin must approve your account before you can log in.';
+            document.getElementById('errorMessage').classList.add('show');
+            return;
+        }
+
         localStorage.removeItem('legitways_logged_out');
         await initAdmin();
     } catch (error) {
@@ -86,7 +94,8 @@ async function handleLogin(e) {
 
 function applyCurrentAdminAuthor() {
     const authorField = document.getElementById('postAuthor');
-    if (!authorField) return;
+    loginBtn.disabled = false;
+    loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Log In';
 
     const username = currentAdminUser?.username || authorField.value.trim();
     if (username) {
@@ -111,6 +120,9 @@ async function initAdmin() {
             const sessionData = await sessionResponse.json();
             currentAdminUser = sessionData.user || null;
             applyCurrentAdminAuthor();
+            if (currentAdminUser?.isSuperAdmin) {
+                document.getElementById('superAdminTabButton')?.classList.remove('is-hidden');
+            }
         }
     } catch (error) {
         console.warn('Could not fetch admin session:', error);
@@ -119,6 +131,9 @@ async function initAdmin() {
     // Load initial data
     await refreshData();
     await loadTeamProfiles();
+    if (currentAdminUser?.isSuperAdmin) {
+        await loadPendingAdmins();
+    }
 }
 
 async function logout() {
@@ -137,14 +152,14 @@ function toggleAuthMode() {
     usernameInput.required = registrationMode;
     document.getElementById('adminPassword').autocomplete = registrationMode ? 'new-password' : 'current-password';
     document.getElementById('authPrompt').textContent = registrationMode
-        ? 'Create the first admin account'
+        ? 'Request admin access for super admin approval'
         : 'Log in to manage blog posts';
     document.getElementById('loginBtn').innerHTML = registrationMode
         ? '<i class="fas fa-user-plus"></i> Register'
         : '<i class="fas fa-sign-in-alt"></i> Log In';
     document.getElementById('authSwitch').textContent = registrationMode
         ? 'Already have an account? Log in'
-        : 'Need an account? Register';
+        : 'Need admin access? Register';
     document.getElementById('errorMessage').classList.remove('show');
 }
 
@@ -292,6 +307,68 @@ async function saveTeamProfiles(event) {
     } catch (error) {
         console.error('Error saving team profiles:', error);
         alert('Error saving team profiles. Please try again.');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function loadPendingAdmins() {
+    if (!currentAdminUser?.isSuperAdmin) return;
+
+    const container = document.getElementById('pendingAdminsList');
+    if (!container) return;
+
+    try {
+        const admins = await db.getPendingAdmins();
+        if (admins.length === 0) {
+            container.innerHTML = '<div class="empty-state">No pending admin requests.</div>';
+            return;
+        }
+
+        container.innerHTML = admins.map(admin => `
+            <div class="post-item pending-admin-item">
+                <div class="post-info">
+                    <h4>${escapeHTML(admin.username)}</h4>
+                    <div class="post-meta">
+                        <span><i class="fas fa-envelope"></i> ${escapeHTML(admin.email)}</span>
+                        <span><i class="fas fa-calendar"></i> ${formatDate(admin.created_at)}</span>
+                    </div>
+                </div>
+                <div class="post-actions">
+                    <button type="button" class="btn btn-approve" data-pending-action="approve" data-admin-id="${escapeAttribute(admin.id)}">
+                        <i class="fas fa-user-check" aria-hidden="true"></i> Approve
+                    </button>
+                    <button type="button" class="btn btn-danger" data-pending-action="remove" data-admin-id="${escapeAttribute(admin.id)}">
+                        <i class="fas fa-user-xmark" aria-hidden="true"></i> Remove
+                    </button>
+                </div>
+            </div>
+        `).join('');
+
+        container.querySelectorAll('[data-pending-action]').forEach(button => {
+            button.addEventListener('click', () => handlePendingAdminAction(button.dataset.pendingAction, button.dataset.adminId));
+        });
+    } catch (error) {
+        container.innerHTML = `<div class="empty-state">Unable to load approval requests: ${escapeHTML(error.message)}</div>`;
+    }
+}
+
+async function handlePendingAdminAction(action, id) {
+    if (!currentAdminUser?.isSuperAdmin) return;
+    if (action === 'remove' && !window.confirm('Remove this admin account?')) return;
+
+    showLoading(true);
+    try {
+        if (action === 'approve') {
+            await db.approveAdmin(id);
+            showNotification('Admin account approved.');
+        } else {
+            await db.removeAdmin(id);
+            showNotification('Admin account removed.');
+        }
+        await loadPendingAdmins();
+    } catch (error) {
+        alert(error.message || 'Unable to update admin account.');
     } finally {
         showLoading(false);
     }
@@ -680,6 +757,8 @@ function switchTab(tabName) {
         renderPostsList();
     } else if (tabName === 'team') {
         loadTeamProfiles();
+    } else if (tabName === 'super-admin') {
+        loadPendingAdmins();
     } else if (tabName === 'export') {
         updateDocumentStatus();
     }

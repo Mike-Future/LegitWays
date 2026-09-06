@@ -295,6 +295,14 @@ const defaultTeamProfiles = Array.from({ length: 4 }, () => ({
     linkedin: ''
 }));
 
+defaultTeamProfiles[0] = {
+    name: 'Nantim Mullah Dadi',
+    role: 'Founder and Owner',
+    bio: 'Nantim Mullah Dadi founded and owns CarnegienFreedom, an education-first platform for practical financial-freedom guidance and scam awareness.',
+    photo: '',
+    linkedin: ''
+};
+
 function renderTeamProfiles(profiles) {
     document.querySelectorAll('[data-team-profile]').forEach((card, index) => {
         const profile = profiles[index] || defaultTeamProfiles[index];

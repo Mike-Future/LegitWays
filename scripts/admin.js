@@ -16,6 +16,14 @@ const defaultTeamProfiles = Array.from({ length: 4 }, () => ({
     linkedin: ''
 }));
 
+defaultTeamProfiles[0] = {
+    name: 'Nantim Mullah Dadi',
+    role: 'Founder and Owner',
+    bio: 'Nantim Mullah Dadi founded and owns CarnegienFreedom, an education-first platform for practical financial-freedom guidance and scam awareness.',
+    photo: '',
+    linkedin: ''
+};
+
 async function authRequest(path, body) {
     const response = await fetch(path, {
         method: 'POST',

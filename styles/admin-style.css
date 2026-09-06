@@ -512,6 +512,32 @@ body {
     gap: 0.5rem;
 }
 
+.team-profile-editor {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+}
+
+.team-profile-editor__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.team-profile-editor__header h3 {
+    margin: 0;
+}
+
+.team-profile-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
 .btn-icon {
     width: 40px;
     height: 40px;

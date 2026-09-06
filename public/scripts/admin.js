@@ -142,20 +142,12 @@ function togglePassword() {
     const toggle = document.getElementById('togglePassword');
     const icon = toggle.querySelector('i');
     const isVisible = input.type === 'text';
-
-    if (isVisible) {
-        input.type = 'password';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye');
-        toggle.setAttribute('aria-label', 'Show password');
-        toggle.title = 'Show password';
-    } else {
-        input.type = 'text';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-        toggle.setAttribute('aria-label', 'Hide password');
-        toggle.title = 'Hide password';
-    }
+    input.type = isVisible ? 'password' : 'text';
+    icon.classList.toggle('fa-eye', isVisible);
+    icon.classList.toggle('fa-eye-slash', !isVisible);
+    toggle.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
+    toggle.title = isVisible ? 'Show password' : 'Hide password';
+    toggle.setAttribute('aria-pressed', String(!isVisible));
 }
 
 // ==================== DATA MANAGEMENT ====================

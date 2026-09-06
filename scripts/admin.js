@@ -169,20 +169,12 @@ function togglePassword() {
     const toggle = document.getElementById('togglePassword');
     const icon = toggle.querySelector('i');
     const isVisible = input.type === 'text';
-
-    if (isVisible) {
-        input.type = 'password';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye');
-        toggle.setAttribute('aria-label', 'Show password');
-        toggle.title = 'Show password';
-    } else {
-        input.type = 'text';
-        icon.classList.remove('fa-eye');
-        icon.classList.add('fa-eye-slash');
-        toggle.setAttribute('aria-label', 'Hide password');
-        toggle.title = 'Hide password';
-    }
+    input.type = isVisible ? 'password' : 'text';
+    icon.classList.toggle('fa-eye', isVisible);
+    icon.classList.toggle('fa-eye-slash', !isVisible);
+    toggle.setAttribute('aria-label', isVisible ? 'Show password' : 'Hide password');
+    toggle.title = isVisible ? 'Show password' : 'Hide password';
+    toggle.setAttribute('aria-pressed', String(!isVisible));
 }
 
 // ==================== DATA MANAGEMENT ====================
@@ -220,9 +212,20 @@ function renderTeamProfileFields(profiles) {
         <div class="form-section team-profile-editor">
             <div class="team-profile-editor__header">
                 <h3><i class="fas fa-user"></i> Profile ${index + 1}</h3>
-                <button type="button" class="btn btn-remove-profile" data-remove-team-profile="${index}">
-                    <i class="fas fa-trash"></i> Remove
-                </button>
+                <div class="team-profile-actions">
+                    <button type="button" class="btn-icon btn-view" data-team-action="view" data-team-index="${index}"
+                        title="View profile" aria-label="View profile">
+                        <i class="fas fa-eye" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="btn-icon btn-edit" data-team-action="edit" data-team-index="${index}"
+                        title="Edit profile" aria-label="Edit profile">
+                        <i class="fas fa-pen-to-square" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="btn-icon btn-delete" data-team-action="delete" data-team-index="${index}"
+                        title="Delete profile" aria-label="Delete profile">
+                        <i class="fas fa-trash-can" aria-hidden="true"></i>
+                    </button>
+                </div>
             </div>
             <div class="form-grid">
                 <div class="form-group">
@@ -254,11 +257,23 @@ function renderTeamProfileFields(profiles) {
     const saveButton = document.getElementById('saveTeamProfilesButton');
     if (saveButton) saveButton.hidden = profiles.length === 0;
 
-    container.querySelectorAll('[data-remove-team-profile]').forEach(button => {
+    container.querySelectorAll('[data-team-action]').forEach(button => {
         button.addEventListener('click', () => {
-            const updatedProfiles = collectTeamProfiles();
-            updatedProfiles.splice(Number(button.dataset.removeTeamProfile), 1);
-            renderTeamProfileFields(updatedProfiles);
+            const index = Number(button.dataset.teamIndex);
+            const action = button.dataset.teamAction;
+            if (action === 'view') {
+                window.open('about.html', '_blank');
+                return;
+            }
+            if (action === 'edit') {
+                container.querySelector(`[data-team-index="${index}"][data-team-field="name"]`)?.focus();
+                return;
+            }
+            if (window.confirm('Delete this profile?')) {
+                const updatedProfiles = collectTeamProfiles();
+                updatedProfiles.splice(index, 1);
+                renderTeamProfileFields(updatedProfiles);
+            }
         });
     });
 

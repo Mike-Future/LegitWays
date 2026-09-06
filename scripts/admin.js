@@ -238,6 +238,8 @@ function renderTeamProfileFields(profiles) {
                 <div class="form-group">
                     <label for="team-${index}-photo">Photo URL</label>
                     <input type="url" id="team-${index}-photo" data-team-field="photo" data-team-index="${index}" value="${escapeAttribute(profile.photo)}" placeholder="https://...">
+                    <input type="file" id="team-${index}-photo-file" data-team-photo-file="${index}" accept="image/*">
+                    <small>Upload an image or use a hosted image URL.</small>
                 </div>
                 <div class="form-group">
                     <label for="team-${index}-linkedin">LinkedIn URL</label>
@@ -253,6 +255,56 @@ function renderTeamProfileFields(profiles) {
             updatedProfiles.splice(Number(button.dataset.removeTeamProfile), 1);
             renderTeamProfileFields(updatedProfiles);
         });
+    });
+
+    container.querySelectorAll('[data-team-photo-file]').forEach(input => {
+        input.addEventListener('change', handleTeamPhotoUpload);
+    });
+}
+
+async function handleTeamPhotoUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+        alert('Please choose an image file.');
+        event.target.value = '';
+        return;
+    }
+
+    try {
+        const dataUrl = await resizeTeamPhoto(file);
+        if (dataUrl.length > 180000) {
+            throw new Error('That image is too large after compression. Please choose a smaller image.');
+        }
+        const index = event.target.dataset.teamPhotoFile;
+        const photoField = document.querySelector(`[data-team-index="${index}"][data-team-field="photo"]`);
+        photoField.value = dataUrl;
+        event.target.nextElementSibling.textContent = 'Image ready to save.';
+    } catch (error) {
+        event.target.value = '';
+        alert(error.message || 'Unable to process that image.');
+    }
+}
+
+function resizeTeamPhoto(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Unable to read that image.'));
+        reader.onload = () => {
+            const image = new Image();
+            image.onerror = () => reject(new Error('Unable to decode that image.'));
+            image.onload = () => {
+                const maxSize = 480;
+                const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(image.width * scale));
+                canvas.height = Math.max(1, Math.round(image.height * scale));
+                canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.72));
+            };
+            image.src = reader.result;
+        };
+        reader.readAsDataURL(file);
     });
 }
 

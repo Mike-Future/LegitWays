@@ -214,11 +214,13 @@ function renderTeamProfileFields(profiles) {
     const container = document.getElementById('teamProfilesFields');
     if (!container) return;
 
-    container.innerHTML = profiles.map((profile, index) => `
+    container.innerHTML = profiles.length === 0
+        ? '<div class="empty-state">No team profiles yet. Add your first profile below.</div>'
+        : profiles.map((profile, index) => `
         <div class="form-section team-profile-editor">
             <div class="team-profile-editor__header">
                 <h3><i class="fas fa-user"></i> Profile ${index + 1}</h3>
-                <button type="button" class="btn btn-danger" data-remove-team-profile="${index}">
+                <button type="button" class="btn btn-remove-profile" data-remove-team-profile="${index}">
                     <i class="fas fa-trash"></i> Remove
                 </button>
             </div>
@@ -248,6 +250,9 @@ function renderTeamProfileFields(profiles) {
             </div>
         </div>
     `).join('');
+
+    const saveButton = document.getElementById('saveTeamProfilesButton');
+    if (saveButton) saveButton.hidden = profiles.length === 0;
 
     container.querySelectorAll('[data-remove-team-profile]').forEach(button => {
         button.addEventListener('click', () => {

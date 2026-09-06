@@ -279,6 +279,33 @@ body {
     background: #b91c1c;
 }
 
+.btn-add-profile {
+    background: var(--growth-green);
+    color: white;
+}
+
+.btn-add-profile:hover {
+    background: #258f4a;
+}
+
+.btn-save-profile {
+    background: var(--soft-sky-blue);
+    color: white;
+}
+
+.btn-save-profile:hover {
+    background: #3676b0;
+}
+
+.btn-remove-profile {
+    background: var(--danger);
+    color: white;
+}
+
+.btn-remove-profile:hover {
+    background: #b91c1c;
+}
+
 /* Admin Container */
 .admin-container {
     max-width: 1200px;

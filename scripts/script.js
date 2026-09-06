@@ -287,6 +287,55 @@ function toggleMobileMenu() {
     menu.classList.toggle('active');
 }
 
+const defaultTeamProfiles = Array.from({ length: 4 }, () => ({
+    name: 'Name placeholder',
+    role: 'Role or title',
+    bio: "Add a brief biography covering this person's experience, focus, and contribution to CarnegienFreedom.",
+    photo: '',
+    linkedin: ''
+}));
+
+function renderTeamProfiles(profiles) {
+    document.querySelectorAll('[data-team-profile]').forEach((card, index) => {
+        const profile = profiles[index] || defaultTeamProfiles[index];
+        card.querySelector('[data-profile-field="name"]').textContent = profile.name || 'Name placeholder';
+        card.querySelector('[data-profile-field="role"]').textContent = profile.role || 'Role or title';
+        card.querySelector('[data-profile-field="bio"]').textContent = profile.bio || '';
+
+        const photo = card.querySelector('[data-profile-field="photo"]');
+        if (profile.photo) {
+            photo.style.backgroundImage = `url("${profile.photo.replace(/["\\)]/g, '')}")`;
+            photo.setAttribute('aria-label', `Photo of ${profile.name || 'team member'}`);
+        } else {
+            photo.style.backgroundImage = '';
+            photo.setAttribute('aria-label', 'Team member photo placeholder');
+        }
+
+        const linkedin = card.querySelector('[data-profile-field="linkedin"]');
+        if (profile.linkedin) {
+            linkedin.href = profile.linkedin;
+            linkedin.target = '_blank';
+            linkedin.rel = 'noopener noreferrer';
+            linkedin.hidden = false;
+        } else {
+            linkedin.removeAttribute('href');
+            linkedin.hidden = true;
+        }
+    });
+}
+
+async function loadTeamProfiles() {
+    if (!document.querySelector('[data-team-profile]')) return;
+
+    try {
+        const response = await fetch('/api/settings/teamProfiles');
+        const profiles = response.ok ? await response.json() : defaultTeamProfiles;
+        renderTeamProfiles(Array.isArray(profiles) ? profiles : defaultTeamProfiles);
+    } catch (error) {
+        renderTeamProfiles(defaultTeamProfiles);
+    }
+}
+
 // Hidden admin access: Ctrl+Shift+A on Windows/Linux, Cmd+Shift+A on macOS.
 document.addEventListener('keydown', (event) => {
     const target = event.target;
@@ -301,6 +350,7 @@ document.addEventListener('keydown', (event) => {
 
 initializeCookieBanner();
 initializeEarlyAccessBanner();
+loadTeamProfiles();
 
 // Smooth Scroll for Navigation Links
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {

@@ -8,6 +8,14 @@ let registrationMode = false;
 let uploadedDocumentName = '';
 let currentAdminUser = null;
 
+const defaultTeamProfiles = Array.from({ length: 4 }, () => ({
+    name: 'Name placeholder',
+    role: 'Role or title',
+    bio: "Add a brief biography covering this person's experience, focus, and contribution to CarnegienFreedom.",
+    photo: '',
+    linkedin: ''
+}));
+
 async function authRequest(path, body) {
     const response = await fetch(path, {
         method: 'POST',
@@ -108,6 +116,7 @@ async function initAdmin() {
 
     // Load initial data
     await refreshData();
+    await loadTeamProfiles();
 }
 
 async function logout() {
@@ -180,6 +189,80 @@ async function updateStats() {
         const maxDate = new Date(Math.max(...dates));
         document.getElementById('lastUpdated').textContent =
             maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+}
+
+function renderTeamProfileFields(profiles) {
+    const container = document.getElementById('teamProfilesFields');
+    if (!container) return;
+
+    container.innerHTML = profiles.map((profile, index) => `
+        <div class="form-section team-profile-editor">
+            <h3><i class="fas fa-user"></i> Profile ${index + 1}</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="team-${index}-name">Name</label>
+                    <input type="text" id="team-${index}-name" data-team-field="name" data-team-index="${index}" value="${escapeAttribute(profile.name)}" placeholder="Full name">
+                </div>
+                <div class="form-group">
+                    <label for="team-${index}-role">Role or title</label>
+                    <input type="text" id="team-${index}-role" data-team-field="role" data-team-index="${index}" value="${escapeAttribute(profile.role)}" placeholder="Role or title">
+                </div>
+                <div class="form-group full-width">
+                    <label for="team-${index}-bio">Biography</label>
+                    <textarea id="team-${index}-bio" data-team-field="bio" data-team-index="${index}" rows="4" placeholder="Short biography">${escapeHTML(profile.bio)}</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="team-${index}-photo">Photo URL</label>
+                    <input type="url" id="team-${index}-photo" data-team-field="photo" data-team-index="${index}" value="${escapeAttribute(profile.photo)}" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label for="team-${index}-linkedin">LinkedIn URL</label>
+                    <input type="url" id="team-${index}-linkedin" data-team-field="linkedin" data-team-index="${index}" value="${escapeAttribute(profile.linkedin)}" placeholder="https://linkedin.com/in/...">
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function escapeHTML(value) {
+    return String(value || '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[character]));
+}
+
+function escapeAttribute(value) {
+    return escapeHTML(value);
+}
+
+async function loadTeamProfiles() {
+    const profiles = await db.getSetting('teamProfiles', defaultTeamProfiles);
+    renderTeamProfileFields(Array.isArray(profiles) ? profiles : defaultTeamProfiles);
+}
+
+async function saveTeamProfiles(event) {
+    event.preventDefault();
+    const profiles = defaultTeamProfiles.map((defaultProfile, index) => {
+        const profile = {};
+        ['name', 'role', 'bio', 'photo', 'linkedin'].forEach(field => {
+            profile[field] = document.querySelector(`[data-team-index="${index}"][data-team-field="${field}"]`).value.trim();
+        });
+        return profile;
+    });
+
+    showLoading(true);
+    try {
+        await db.saveSetting('teamProfiles', profiles);
+        showNotification('Team profiles updated successfully!');
+    } catch (error) {
+        console.error('Error saving team profiles:', error);
+        alert('Error saving team profiles. Please try again.');
+    } finally {
+        showLoading(false);
     }
 }
 
@@ -564,6 +647,8 @@ function switchTab(tabName) {
     // Refresh data if needed
     if (tabName === 'manage') {
         renderPostsList();
+    } else if (tabName === 'team') {
+        loadTeamProfiles();
     } else if (tabName === 'export') {
         updateDocumentStatus();
     }
@@ -620,6 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     document.getElementById('authSwitch')?.addEventListener('click', toggleAuthMode);
     document.getElementById('togglePassword')?.addEventListener('click', togglePassword);
+    document.getElementById('teamProfilesForm')?.addEventListener('submit', saveTeamProfiles);
 
     document.querySelectorAll('.tab-btn[data-tab]').forEach(button => {
         button.addEventListener('click', () => switchTab(button.dataset.tab));

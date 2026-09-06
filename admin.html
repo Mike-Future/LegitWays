@@ -124,9 +124,28 @@
                 <button class="tab-btn" data-tab="manage">
                     <i class="fas fa-list"></i> Manage Posts
                 </button>
+                <button class="tab-btn" data-tab="team">
+                    <i class="fas fa-users"></i> Team Profiles
+                </button>
                 <button class="tab-btn" data-tab="export">
                     <i class="fas fa-file-word"></i> Export Document
                 </button>
+            </div>
+
+            <!-- Team Profiles Tab -->
+            <div class="tab-content" id="teamTab">
+                <div class="instructions">
+                    <h4><i class="fas fa-users"></i> Update Team Profiles</h4>
+                    <p>These profiles appear on the public About page. Leave a photo or LinkedIn field blank when it is
+                        not needed.</p>
+                </div>
+
+                <form id="teamProfilesForm">
+                    <div id="teamProfilesFields"></div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Team Profiles
+                    </button>
+                </form>
             </div>
 
             <!-- Add Post Tab -->

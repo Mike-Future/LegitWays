@@ -66,7 +66,9 @@ async function initDB() {
         getSetting,
         saveSetting,
         getPendingAdmins,
+        getAdmins,
         approveAdmin,
+        revokeAdmin,
         removeAdmin,
         exportAllData,
         importData,
@@ -170,8 +172,16 @@ async function getPendingAdmins() {
     return request('/admin/pending');
 }
 
+async function getAdmins() {
+    return request('/admin');
+}
+
 async function approveAdmin(id) {
     return request(`/admin/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+}
+
+async function revokeAdmin(id) {
+    return request(`/admin/${encodeURIComponent(id)}/revoke`, { method: 'POST' });
 }
 
 async function removeAdmin(id) {

@@ -410,6 +410,15 @@ app.get('/api/admin/pending', requireSuperAdmin, async (req, res) => {
     res.json(result.rows);
 });
 
+app.get('/api/admin', requireSuperAdmin, async (req, res) => {
+    const result = await pool.query(
+        `SELECT id, username, email, approved, is_super_admin AS "isSuperAdmin", created_at
+         FROM admin_users
+         ORDER BY is_super_admin DESC, approved DESC, created_at ASC`
+    );
+    res.json(result.rows);
+});
+
 app.post('/api/admin/:id/approve', requireSuperAdmin, async (req, res) => {
     const result = await pool.query(
         `UPDATE admin_users
@@ -421,6 +430,24 @@ app.post('/api/admin/:id/approve', requireSuperAdmin, async (req, res) => {
     if (!result.rows[0]) {
         return res.status(404).json({ error: 'Admin account not found' });
     }
+    res.json(result.rows[0]);
+});
+
+app.post('/api/admin/:id/revoke', requireSuperAdmin, async (req, res) => {
+    if (req.params.id === req.adminUser.id) {
+        return res.status(400).json({ error: 'You cannot revoke your own super admin access' });
+    }
+    const result = await pool.query(
+        `UPDATE admin_users
+         SET approved = false
+         WHERE id = $1 AND is_super_admin = false
+         RETURNING id, username, email, approved, is_super_admin AS "isSuperAdmin"`,
+        [req.params.id]
+    );
+    if (!result.rows[0]) {
+        return res.status(404).json({ error: 'Approved admin account not found' });
+    }
+    await pool.query('DELETE FROM admin_sessions WHERE user_id = $1', [req.params.id]);
     res.json(result.rows[0]);
 });
 

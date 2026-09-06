@@ -532,6 +532,19 @@ body {
     color: white;
 }
 
+.admin-status--approved {
+    color: var(--growth-green);
+}
+
+.admin-status--pending {
+    color: var(--opportunity-gold);
+}
+
+.admin-account-item .post-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
 .empty-state {
     padding: 2rem;
     color: var(--text-muted);

@@ -132,7 +132,7 @@ async function initAdmin() {
     await refreshData();
     await loadTeamProfiles();
     if (currentAdminUser?.isSuperAdmin) {
-        await loadPendingAdmins();
+        await loadAdmins();
     }
 }
 
@@ -312,61 +312,66 @@ async function saveTeamProfiles(event) {
     }
 }
 
-async function loadPendingAdmins() {
+async function loadAdmins() {
     if (!currentAdminUser?.isSuperAdmin) return;
 
-    const container = document.getElementById('pendingAdminsList');
+    const container = document.getElementById('adminsList');
     if (!container) return;
 
     try {
-        const admins = await db.getPendingAdmins();
+        const admins = await db.getAdmins();
         if (admins.length === 0) {
-            container.innerHTML = '<div class="empty-state">No pending admin requests.</div>';
+            container.innerHTML = '<div class="empty-state">No admin accounts found.</div>';
             return;
         }
 
         container.innerHTML = admins.map(admin => `
-            <div class="post-item pending-admin-item">
+            <div class="post-item admin-account-item">
                 <div class="post-info">
                     <h4>${escapeHTML(admin.username)}</h4>
                     <div class="post-meta">
                         <span><i class="fas fa-envelope"></i> ${escapeHTML(admin.email)}</span>
                         <span><i class="fas fa-calendar"></i> ${formatDate(admin.created_at)}</span>
+                        <span class="admin-status admin-status--${admin.approved ? 'approved' : 'pending'}">
+                            <i class="fas ${admin.approved ? 'fa-circle-check' : 'fa-clock'}"></i>
+                            ${admin.isSuperAdmin ? 'Super admin' : (admin.approved ? 'Approved' : 'Pending')}
+                        </span>
                     </div>
                 </div>
                 <div class="post-actions">
-                    <button type="button" class="btn btn-approve" data-pending-action="approve" data-admin-id="${escapeAttribute(admin.id)}">
-                        <i class="fas fa-user-check" aria-hidden="true"></i> Approve
-                    </button>
-                    <button type="button" class="btn btn-danger" data-pending-action="remove" data-admin-id="${escapeAttribute(admin.id)}">
-                        <i class="fas fa-user-xmark" aria-hidden="true"></i> Remove
-                    </button>
+                    ${!admin.isSuperAdmin && !admin.approved ? `<button type="button" class="btn btn-approve" data-admin-action="approve" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-check" aria-hidden="true"></i> Approve</button>` : ''}
+                    ${!admin.isSuperAdmin && admin.approved ? `<button type="button" class="btn btn-secondary" data-admin-action="revoke" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-slash" aria-hidden="true"></i> Revoke access</button>` : ''}
+                    ${!admin.isSuperAdmin ? `<button type="button" class="btn btn-danger" data-admin-action="remove" data-admin-id="${escapeAttribute(admin.id)}"><i class="fas fa-user-xmark" aria-hidden="true"></i> Remove</button>` : ''}
                 </div>
             </div>
         `).join('');
 
-        container.querySelectorAll('[data-pending-action]').forEach(button => {
-            button.addEventListener('click', () => handlePendingAdminAction(button.dataset.pendingAction, button.dataset.adminId));
+        container.querySelectorAll('[data-admin-action]').forEach(button => {
+            button.addEventListener('click', () => handleAdminAction(button.dataset.adminAction, button.dataset.adminId));
         });
     } catch (error) {
-        container.innerHTML = `<div class="empty-state">Unable to load approval requests: ${escapeHTML(error.message)}</div>`;
+        container.innerHTML = `<div class="empty-state">Unable to load admin accounts: ${escapeHTML(error.message)}</div>`;
     }
 }
 
-async function handlePendingAdminAction(action, id) {
+async function handleAdminAction(action, id) {
     if (!currentAdminUser?.isSuperAdmin) return;
-    if (action === 'remove' && !window.confirm('Remove this admin account?')) return;
+    if (action === 'remove' && !window.confirm('Remove this admin account permanently?')) return;
+    if (action === 'revoke' && !window.confirm('Revoke this admin account access?')) return;
 
     showLoading(true);
     try {
         if (action === 'approve') {
             await db.approveAdmin(id);
             showNotification('Admin account approved.');
+        } else if (action === 'revoke') {
+            await db.revokeAdmin(id);
+            showNotification('Admin access revoked.');
         } else {
             await db.removeAdmin(id);
             showNotification('Admin account removed.');
         }
-        await loadPendingAdmins();
+        await loadAdmins();
     } catch (error) {
         alert(error.message || 'Unable to update admin account.');
     } finally {
@@ -758,7 +763,7 @@ function switchTab(tabName) {
     } else if (tabName === 'team') {
         loadTeamProfiles();
     } else if (tabName === 'super-admin') {
-        loadPendingAdmins();
+        loadAdmins();
     } else if (tabName === 'export') {
         updateDocumentStatus();
     }

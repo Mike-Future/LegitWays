@@ -34,7 +34,6 @@ No frontend framework or build step is required. The browser loads the HTML, CSS
 | `contact.html`             | Contact page                                                 |
 | `scam-awareness.html`      | Scam education resource                                      |
 | `success-stories.html`     | Success stories resource                                     |
-| `mission-vision.html`      | Mission and vision                                           |
 | `core-values.html`         | Core values                                                  |
 | `privacy-policy.html`      | Privacy and data handling policy                             |
 | `cookie-policy.html`       | Cookie categories, consent, and management guidance          |

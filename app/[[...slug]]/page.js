@@ -13,7 +13,6 @@ const pages = {
     contact: 'contact.html',
     'scam-awareness': 'scam-awareness.html',
     'success-stories': 'success-stories.html',
-    'mission-vision': 'mission-vision.html',
     'core-values': 'core-values.html',
     'privacy-policy': 'privacy-policy.html',
     'cookie-policy': 'cookie-policy.html',
